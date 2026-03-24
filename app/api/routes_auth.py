@@ -42,6 +42,6 @@ async def me(
     use_cases = AuthUseCases(UserRepository(db))
     user = await use_cases.me(
         user_id=int(token_payload["sub"]),
-        tenant_id=token_payload["tid"],
+        tenant_id=token_payload["tenant_id"],
     )
     return MeResponse(id=user.id, email=user.email, tenant_id=user.tenant_id)

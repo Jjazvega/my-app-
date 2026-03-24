@@ -7,6 +7,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
+from app.core.tenant import set_tenant_context
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -23,9 +24,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(subject: str, tenant_id: str) -> str:
     now = datetime.now(timezone.utc)
+    normalized_tenant_id = tenant_id.strip().lower()
     payload = {
         "sub": subject,
-        "tid": tenant_id,
+        "tenant_id": normalized_tenant_id,
+        "tid": normalized_tenant_id,
         "type": "access",
         "iat": now,
         "exp": now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES),
@@ -50,10 +53,15 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 def get_token_payload(token: str = Depends(oauth2_scheme)) -> dict[str, Any]:
     payload = decode_access_token(token)
-    if payload.get("type") != "access" or "sub" not in payload or "tid" not in payload:
+    tenant_id = payload.get("tenant_id") or payload.get("tid")
+    if payload.get("type") != "access" or "sub" not in payload or not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    normalized_tenant_id = set_tenant_context(str(tenant_id))
+    payload["tenant_id"] = normalized_tenant_id
+    payload["tid"] = normalized_tenant_id
     return payload
